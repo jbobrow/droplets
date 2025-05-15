@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Droplets</title>
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no" />
+    <meta name="HandheldFriendly" content="true">    <title>Droplets</title>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.7/lib/p5.min.js"></script>
     <style>
         body {
@@ -154,29 +155,18 @@
             
             debugInfo.push('Checking device support...');
             
-            // Check if device supports orientation/motion events
-            const hasDeviceOrientation = typeof DeviceOrientationEvent !== 'undefined';
-            const hasDeviceMotion = typeof DeviceMotionEvent !== 'undefined';
-            const hasRequestPermission = typeof DeviceOrientationEvent.requestPermission === 'function' ||
-                                        typeof DeviceMotionEvent.requestPermission === 'function';
-            
-            debugInfo.push(`DeviceOrientation: ${hasDeviceOrientation}`);
-            debugInfo.push(`DeviceMotion: ${hasDeviceMotion}`);
-            debugInfo.push(`RequestPermission: ${hasRequestPermission}`);
-            
-            if (hasDeviceOrientation || hasDeviceMotion) {
-                if (hasRequestPermission) {
-                    // Need to request permission
-                    button.style.display = 'block';
-                    status.innerHTML = '<small>Permission required</small>';
-                    debugInfo.push('Showing permission button');
-                } else {
-                    // Try to set up listeners directly
-                    debugInfo.push('Setting up listeners without permission');
-                    setupOrientationListeners();
-                    status.innerHTML = '<small>Device motion active</small>';
-                    permissionGranted = true;
-                }
+            // Check if device supports motion events and needs permission
+            if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
+                // iOS 13+ style permission request
+                button.style.display = 'block';
+                status.innerHTML = '<small>Permission required</small>';
+                debugInfo.push('iOS permission required - showing button');
+            } else if (window.DeviceMotionEvent) {
+                // Other browsers that support device motion
+                debugInfo.push('Setting up listeners without permission');
+                setupOrientationListeners();
+                status.innerHTML = '<small>Device motion active</small>';
+                permissionGranted = true;
             } else {
                 // No device motion support
                 status.innerHTML = '<small>Using mouse/touch</small>';
