@@ -250,10 +250,10 @@
         
         // Schedule the next circle to appear
         function scheduleNextCircle() {
-            // Random interval between 0.2 and 3 seconds
-            const minInterval = 200; // 0.2 seconds in ms
-            const maxInterval = 3000; // 3 seconds in ms
-            const interval = minInterval + Math.random() * (maxInterval - minInterval);
+            // Random interval between 0.1 and 2 seconds
+            const minInterval = 100; // 0.2 seconds in ms
+            const maxInterval = 2000; // 3 seconds in ms
+            const interval = minInterval + (Math.random()*Math.random()) * (maxInterval - minInterval);
             nextCircleTime = lastTime + interval;
         }
         
@@ -295,9 +295,9 @@
                 } else {
                     // Update opacity based on age (fade out over time)
                     const progress = age / circle.lifespan;
-                    // Fade starts at 70% of lifespan
-                    if (progress > 0.7) {
-                        const fadeProgress = (progress - 0.7) / 0.3;
+                    // Fade starts at 50% of lifespan
+                    if (progress > 0.5) {
+                        const fadeProgress = Math.sqrt((progress - 0.5) * 2);
                         circle.opacity = 1.0 - fadeProgress;
                     } else {
                         circle.opacity = 1.0;
