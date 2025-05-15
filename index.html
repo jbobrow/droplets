@@ -3,6 +3,8 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
     <meta name="HandheldFriendly" content="true">
     <title>Droplets</title>
     <style>
@@ -13,18 +15,27 @@
             font-family: Arial, sans-serif;
             overflow: hidden;
             height: 100vh;
+            height: 100dvh; /* Dynamic viewport height for mobile */
             width: 100vw;
+            /* Ensure full coverage on iOS */
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
         }
         
         #container {
             position: relative;
             width: 100vw;
             height: 100vh;
+            height: 100dvh; /* Dynamic viewport height for mobile */
         }
         
         #permission-panel {
             position: absolute;
             top: 50%;
+            top: 50dvh; /* Use dynamic viewport for accurate centering */
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
@@ -238,8 +249,14 @@
         // Initialize canvas and start with no mask circles
         function initializeCanvas() {
             const canvas = document.getElementById('grid-canvas');
+            // Use dynamic viewport dimensions for mobile browsers
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            // Try to use visualViewport if available for better mobile support
+            if (window.visualViewport) {
+                canvas.width = window.visualViewport.width;
+                canvas.height = window.visualViewport.height;
+            }
             gridCanvas = canvas.getContext('2d');
             
             // Start with no circles
@@ -273,8 +290,8 @@
             const x = radius + Math.random() * (window.innerWidth - diameter);
             const y = radius + Math.random() * (window.innerHeight - diameter);
             
-            // Random lifespan between 5-20 seconds
-            const lifespan = 5000 + Math.random() * 15000;
+            // Random lifespan between 10-30 seconds
+            const lifespan = 10000 + Math.random() * 20000;
             
             const circle = {
                 x: x,
@@ -486,9 +503,9 @@
                 panelContent.style.opacity = '0';
                 
                 // Completely hide the content after the fade completes
-                setTimeout(() => {
-                    panelContent.style.display = 'none';
-                }, 7000); // 7 seconds for the fade
+                // setTimeout(() => {
+                //     panelContent.style.display = 'none';
+                // }, 7000); // 7 seconds for the fade
             }, 3000); // Wait 3 seconds before starting the fade
         }
         
@@ -570,20 +587,36 @@
         // Handle window resize
         window.addEventListener('resize', () => {
             if (isMotionEnabled) {
-                // Resize canvas
+                // Resize canvas using visual viewport when available
                 const canvas = document.getElementById('grid-canvas');
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
+                if (window.visualViewport) {
+                    canvas.width = window.visualViewport.width;
+                    canvas.height = window.visualViewport.height;
+                }
                 
                 // Update mask with current circles
                 updateMask();
                 
                 // Adjust max radius based on screen size
-                const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-                const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+                const vw = canvas.width;
+                const vh = canvas.height;
                 maxRadius = Math.min(vw, vh) / 4;
             }
         });
+        
+        // Handle visual viewport changes on mobile
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                if (isMotionEnabled) {
+                    const canvas = document.getElementById('grid-canvas');
+                    canvas.width = window.visualViewport.width;
+                    canvas.height = window.visualViewport.height;
+                    updateMask();
+                }
+            });
+        }
     </script>
 </body>
 </html>
