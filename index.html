@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no" />
-    <meta name="HandheldFriendly" content="true">    <title>Droplets</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Droplets</title>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.11.7/lib/p5.min.js"></script>
     <style>
         body {
@@ -200,29 +199,18 @@
             const status = document.getElementById('status');
             
             try {
-                let orientationPermission = 'granted';
-                let motionPermission = 'granted';
+                debugInfo.push('Requesting DeviceMotion permission...');
                 
-                // Request DeviceOrientationEvent permission
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    debugInfo.push('Requesting orientation permission...');
-                    orientationPermission = await DeviceOrientationEvent.requestPermission();
-                    debugInfo.push('Orientation permission: ' + orientationPermission);
-                }
+                // Only request DeviceMotion permission
+                const permission = await DeviceMotionEvent.requestPermission();
+                debugInfo.push('Permission result: ' + permission);
                 
-                // Request DeviceMotionEvent permission  
-                if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                    debugInfo.push('Requesting motion permission...');
-                    motionPermission = await DeviceMotionEvent.requestPermission();
-                    debugInfo.push('Motion permission: ' + motionPermission);
-                }
-                
-                if (orientationPermission === 'granted' || motionPermission === 'granted') {
+                if (permission === 'granted') {
                     setupOrientationListeners();
                     button.style.display = 'none';
                     permissionGranted = true;
                     status.innerHTML = '<small>Device motion enabled!</small>';
-                    debugInfo.push('Permissions granted, listeners set up');
+                    debugInfo.push('Permission granted, listeners set up');
                 } else {
                     button.style.display = 'none';
                     status.innerHTML = '<small>Permission denied - using mouse</small>';
@@ -242,81 +230,74 @@
         }
         
         function setupOrientationListeners() {
-            debugInfo.push('Setting up orientation listeners...');
+            debugInfo.push('Setting up listeners...');
             
-            // Listen to device orientation events
-            if (window.DeviceOrientationEvent) {
-                window.addEventListener('deviceorientation', handleOrientation);
-                debugInfo.push('DeviceOrientation listener added');
-            }
+            // Use addEventListener instead of window.ondevice* for better reliability
+            window.addEventListener('devicemotion', handleMotion, true);
+            window.addEventListener('deviceorientation', handleOrientation, true);
             
-            // Listen to device motion events (for acceleration data)
-            if (window.DeviceMotionEvent) {
-                window.addEventListener('devicemotion', handleMotion);
-                debugInfo.push('DeviceMotion listener added');
-            }
+            debugInfo.push('Event listeners added');
             
             // Test the listeners with a timeout
             setTimeout(() => {
-                if (orientation.gamma === 0 && orientation.beta === 0) {
-                    debugInfo.push('No orientation data received after 2s');
-                    // Try alternative approach for some Android devices
-                    tryAlternativeListeners();
+                if (orientation.gamma === 0 && orientation.beta === 0 && motion.x === 0) {
+                    debugInfo.push('No motion/orientation data received after 2s');
+                    // Try legacy approach for some devices
+                    window.ondeviceorientation = handleOrientation;
+                    window.ondevicemotion = handleMotion;
                 } else {
-                    debugInfo.push('Orientation data received successfully');
+                    debugInfo.push('Motion/orientation data received successfully');
                 }
                 updateDebugDisplay();
             }, 2000);
         }
         
-        function tryAlternativeListeners() {
-            debugInfo.push('Trying alternative listeners...');
+        function handleMotion(event) {
+            // Use accelerationIncludingGravity for tilt detection (like reference example)
+            if (event.accelerationIncludingGravity) {
+                const g = event.accelerationIncludingGravity;
+                
+                // Map tilt to grid offset (similar to reference but scaled for grid movement)
+                // Negating y because device coordinate system is opposite to screen
+                targetOffsetX = map(g.x, -5, 5, -100, 100);
+                targetOffsetY = map(-g.y, -5, 5, -100, 100);
+                
+                // Store for display
+                motion.x = g.x;
+                motion.y = g.y;
+                motion.z = g.z;
+                
+                // Update debug display
+                debugInfo.push(`Motion: x=${g.x.toFixed(2)}, y=${g.y.toFixed(2)}`);
+                
+                // Update status to show it's working
+                if (!permissionGranted) {
+                    permissionGranted = true;
+                    const status = document.getElementById('status');
+                    status.innerHTML = '<small>Device motion active!</small>';
+                    debugInfo.push('Device motion detected');
+                    updateDebugDisplay();
+                }
+            }
             
-            // Some devices need this approach
-            window.ondeviceorientation = handleOrientation;
-            window.ondevicemotion = handleMotion;
-            
-            updateDebugDisplay();
+            updateOrientationDisplay();
         }
         
         function handleOrientation(event) {
-            // Store orientation data
+            // Store orientation data (keeping for display purposes)
             orientation.alpha = event.alpha || 0; // Z-axis rotation (compass)
             orientation.beta = event.beta || 0;   // X-axis rotation (tilt front/back)
             orientation.gamma = event.gamma || 0; // Y-axis rotation (tilt left/right)
             
-            // Use gamma and beta for movement (more intuitive)
-            targetOffsetX = map(orientation.gamma, -45, 45, -100, 100);
-            targetOffsetY = map(orientation.beta, -45, 45, -100, 100);
-            
             // Update info display
             updateOrientationDisplay();
-            
-            // Mark as working
-            if (!permissionGranted && (orientation.gamma !== 0 || orientation.beta !== 0)) {
-                permissionGranted = true;
-                const status = document.getElementById('status');
-                status.innerHTML = '<small>Device motion active!</small>';
-                debugInfo.push('Device motion detected without permission API');
-                updateDebugDisplay();
-            }
-        }
-        
-        function handleMotion(event) {
-            // Store motion data (acceleration)
-            if (event.acceleration) {
-                motion.x = event.acceleration.x || 0;
-                motion.y = event.acceleration.y || 0;
-                motion.z = event.acceleration.z || 0;
-            }
         }
         
         function updateOrientationDisplay() {
             const orientationData = document.getElementById('orientation-data');
             orientationData.innerHTML = 
-                `γ: ${orientation.gamma.toFixed(1)}° ` +
-                `β: ${orientation.beta.toFixed(1)}° ` +
-                `α: ${orientation.alpha.toFixed(1)}°`;
+                `Motion: x=${motion.x.toFixed(1)} y=${motion.y.toFixed(1)}<br>` +
+                `Orientation: γ=${orientation.gamma.toFixed(1)}° β=${orientation.beta.toFixed(1)}°`;
         }
         
         function draw() {
@@ -425,11 +406,12 @@
         }
         
         function updateGridOffset() {
-            // If device motion is not available or not granted, use mouse position
+            // If device motion is not available or not working, use mouse position
             if (!permissionGranted) {
-                targetOffsetX = map(mouseX, 0, width, -50, 50);
-                targetOffsetY = map(mouseY, 0, height, -50, 50);
+                targetOffsetX = map(mouseX, 0, width, -100, 100);
+                targetOffsetY = map(mouseY, 0, height, -100, 100);
             }
+            // Otherwise, motion events will update targetOffsetX/Y directly
         }
         
         function addCircle(x, y) {
@@ -488,13 +470,12 @@
         }
         
         function touchStarted() {
-            // Handle touch events properly for retina displays
+            // Handle touch events properly
             if (touches.length > 0) {
-                // Convert physical touch coordinates to logical coordinates
-                // by dividing by pixel density
-                let touchX = touches[0].x / displayInfo.pixelDensity;
-                let touchY = touches[0].y / displayInfo.pixelDensity;
-                addCircle(touchX, touchY);
+                // Use the touch coordinates directly - p5.js already handles coordinate conversion
+                addCircle(touches[0].x, touches[0].y);
+                debugInfo.push(`Touch at ${touches[0].x.toFixed(1)}, ${touches[0].y.toFixed(1)}`);
+                updateDebugDisplay();
             }
             return false; // Prevent default behavior
         }
