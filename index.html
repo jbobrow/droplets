@@ -1,484 +1,285 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Droplets</title>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.7/lib/p5.min.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no" />
+    <meta name="HandheldFriendly" content="true">
+    <title>Tilt Circle App</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            background: white;
             font-family: Arial, sans-serif;
-            background: #000;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
         }
-        #permission-button {
-            position: fixed;
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #permission-panel {
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            padding: 15px 30px;
-            font-size: 18px;
-            background-color: #007bff;
+            text-align: center;
+            padding: 20px;
+            max-width: 300px;
+        }
+        
+        #start-button {
+            background: #007AFF;
             color: white;
             border: none;
-            border-radius: 5px;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
             cursor: pointer;
+            margin-top: 15px;
+        }
+        
+        #start-button:hover {
+            background: #0051D5;
+        }
+        
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #crosshairs {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            pointer-events: none;
+        }
+        
+        .crosshair-line {
+            position: absolute;
+            background: #333;
+        }
+        
+        .horizontal {
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            transform: translateY(-50%);
+        }
+        
+        .vertical {
+            top: 0;
+            left: 50%;
+            width: 2px;
+            height: 100%;
+            transform: translateX(-50%);
+        }
+        
+        #circle {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: #007AFF;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s ease-out;
+        }
+        
+        .warning {
+            color: #ff4444;
+            margin-top: 20px;
             display: none;
-            z-index: 1000;
         }
-        #permission-button:hover {
-            background-color: #0056b3;
-        }
-        #info {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            color: #333;
-            background: rgba(255,255,255,0.9);
+        
+        .values-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
             padding: 10px;
             border-radius: 5px;
             font-size: 12px;
-            max-width: 250px;
-            z-index: 999;
-        }
-        #debug {
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            color: #333;
-            background: rgba(255,255,0,0.7);
-            padding: 5px;
-            border-radius: 3px;
-            font-size: 10px;
-            max-width: 250px;
-            z-index: 999;
-        }
-        canvas {
-            display: block;
-            position: fixed;
-            top: 0;
-            left: 0;
+            font-family: monospace;
+            display: none;
         }
     </style>
 </head>
 <body>
-    <button id="permission-button">Enable Device Motion</button>
-    <div id="info">
-        <div>Tilt your device to move the pattern</div>
-        <div>Tap/click to add droplets</div>
-        <div id="status"></div>
-        <div id="orientation-data"></div>
+    <div id="container">
+        <div id="permission-panel">
+            <h2>Tilt Circle App</h2>
+            <p>This app uses your device's motion sensors to control a circle. Tilt your device to move the circle around!</p>
+            <button id="start-button">Enable Motion Access</button>
+            <div class="warning" id="warning">
+                Device motion is not available on this device or browser.
+            </div>
+        </div>
+        
+        <div id="canvas-container" style="display: none;">
+            <div id="crosshairs">
+                <div class="crosshair-line horizontal"></div>
+                <div class="crosshair-line vertical"></div>
+            </div>
+            <div id="circle"></div>
+            <div class="values-display" id="values">
+                <div>Alpha: <span id="alpha">0</span>°</div>
+                <div>Beta: <span id="beta">0</span>°</div>
+                <div>Gamma: <span id="gamma">0</span>°</div>
+                <div>Compass: <span id="compass">0</span>°</div>
+            </div>
+        </div>
     </div>
-    <div id="debug"></div>
 
     <script>
-        let circles = [];
-        let gridOffsetX = 0;
-        let gridOffsetY = 0;
-        let targetOffsetX = 0;
-        let targetOffsetY = 0;
-        let maskCanvas;
-        let gridCanvas;
-        let permissionGranted = false;
-        let orientation = { alpha: 0, beta: 0, gamma: 0 };
-        let motion = { x: 0, y: 0, z: 0 };
-        let debugInfo = [];
+        let isMotionEnabled = false;
+        let maxRadius = 120; // Maximum distance circle can move from center
+        let currentX = 0;
+        let currentY = 0;
+        let falloffRate = 0.85; // How quickly the circle returns to center
         
-        // Track display info
-        let displayInfo = {
-            pixelDensity: 1,
-            windowWidth: 0,
-            windowHeight: 0,
-            canvasWidth: 0,
-            canvasHeight: 0
-        };
+        // Get DOM elements
+        const permissionPanel = document.getElementById('permission-panel');
+        const canvasContainer = document.getElementById('canvas-container');
+        const startButton = document.getElementById('start-button');
+        const warning = document.getElementById('warning');
+        const circle = document.getElementById('circle');
+        const valuesDisplay = document.getElementById('values');
         
-        function setup() {
-            // Draw smooth graphics
-            smooth();
-
-            // Get the device pixel ratio for retina support
-            displayInfo.pixelDensity = window.devicePixelRatio || 1;
-            displayInfo.windowWidth = window.innerWidth;
-            displayInfo.windowHeight = window.innerHeight;
-            
-            // Create canvas with proper dimensions
-            createCanvas(displayInfo.windowWidth, displayInfo.windowHeight);
-            
-            // Handle retina displays properly
-            pixelDensity(displayInfo.pixelDensity);
-
-            displayInfo.canvasWidth = displayInfo.windowWidth;
-            displayInfo.canvasHeight = displayInfo.windowHeight;
-            
-            debugInfo.push(`Window: ${displayInfo.windowWidth}x${displayInfo.windowHeight}`);
-            debugInfo.push(`Canvas: ${displayInfo.canvasWidth}x${displayInfo.canvasHeight}`);
-            debugInfo.push(`Pixel density: ${displayInfo.pixelDensity}`);
-            
-            // Ensure canvas has valid dimensions before creating graphics
-            if (width > 0 && height > 0) {
-                maskCanvas = createGraphics(displayInfo.windowWidth, displayInfo.windowHeight);
-                gridCanvas = createGraphics(displayInfo.windowWidth, displayInfo.windowHeight);
-                
-                // Set pixel density for offscreen canvases too
-                maskCanvas.pixelDensity(displayInfo.pixelDensity);
-                maskCanvas.smooth();
-                gridCanvas.pixelDensity(displayInfo.pixelDensity);
-            }
-            
-            // Add debug info
-            debugInfo.push('Setup completed');
-            debugInfo.push('Browser: ' + navigator.userAgent.split(' ')[0]);
-            debugInfo.push('HTTPS: ' + (location.protocol === 'https:'));
-            
-            // Show permission button if device motion/orientation is supported
-            checkForDeviceSupport();
-            
-            // Set up permission button
-            const button = document.getElementById('permission-button');
-            button.addEventListener('click', handlePermissionClick);
-            
-            updateDebugDisplay();
+        // Check if we're on a mobile device or mobile-sized screen
+        function isMobileDevice() {
+            return window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         }
         
-        function updateDebugDisplay() {
-            const debugDiv = document.getElementById('debug');
-            debugDiv.innerHTML = debugInfo.slice(-6).join('<br>');
-        }
-        
-        function checkForDeviceSupport() {
-            const button = document.getElementById('permission-button');
-            const status = document.getElementById('status');
-            
-            debugInfo.push('Checking device support...');
-            
-            // Check if device supports motion events and needs permission
-            if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
-                // iOS 13+ style permission request
-                button.style.display = 'block';
-                status.innerHTML = '<small>Permission required</small>';
-                debugInfo.push('iOS permission required - showing button');
-            } else if (window.DeviceMotionEvent) {
-                // Other browsers that support device motion
-                debugInfo.push('Setting up listeners without permission');
-                setupOrientationListeners();
-                status.innerHTML = '<small>Device motion active</small>';
-                permissionGranted = true;
-            } else {
-                // No device motion support
-                status.innerHTML = '<small>Using mouse/touch</small>';
-                debugInfo.push('No device motion support - using mouse');
-                permissionGranted = false;
-            }
-            
-            updateDebugDisplay();
-        }
-        
-        async function handlePermissionClick() {
-            const button = document.getElementById('permission-button');
-            const status = document.getElementById('status');
-            
-            debugInfo.push('Permission button clicked');
-            button.textContent = 'Requesting...';
-            button.disabled = true;
-            
-            try {
-                await requestPermissions();
-            } catch (error) {
-                debugInfo.push('Error in handlePermissionClick: ' + error.message);
-                console.error('Permission error:', error);
-            }
-            
-            updateDebugDisplay();
-        }
-        
-        async function requestPermissions() {
-            const button = document.getElementById('permission-button');
-            const status = document.getElementById('status');
-            
-            try {
-                debugInfo.push('Requesting DeviceMotion permission...');
-                
-                // Only request DeviceMotion permission
-                const permission = await DeviceMotionEvent.requestPermission();
-                debugInfo.push('Permission result: ' + permission);
-                
-                if (permission === 'granted') {
-                    setupOrientationListeners();
-                    button.style.display = 'none';
-                    permissionGranted = true;
-                    status.innerHTML = '<small>Device motion enabled!</small>';
-                    debugInfo.push('Permission granted, listeners set up');
-                } else {
-                    button.style.display = 'none';
-                    status.innerHTML = '<small>Permission denied - using mouse</small>';
-                    debugInfo.push('Permission denied');
-                }
-            } catch (error) {
-                debugInfo.push('Permission error: ' + error.message);
-                console.error('Error requesting permission:', error);
-                
-                // Try to set up listeners anyway (for older browsers)
-                setupOrientationListeners();
-                button.style.display = 'none';
-                status.innerHTML = '<small>Trying without permission...</small>';
-            }
-            
-            updateDebugDisplay();
-        }
-        
-        function setupOrientationListeners() {
-            debugInfo.push('Setting up listeners...');
-            
-            // Use addEventListener instead of window.ondevice* for better reliability
-            window.addEventListener('devicemotion', handleMotion, true);
-            window.addEventListener('deviceorientation', handleOrientation, true);
-            
-            debugInfo.push('Event listeners added');
-            
-            // Test the listeners with a timeout
-            setTimeout(() => {
-                if (orientation.gamma === 0 && orientation.beta === 0 && motion.x === 0) {
-                    debugInfo.push('No motion/orientation data received after 2s');
-                    // Try legacy approach for some devices
-                    window.ondeviceorientation = handleOrientation;
-                    window.ondevicemotion = handleMotion;
-                } else {
-                    debugInfo.push('Motion/orientation data received successfully');
-                }
-                updateDebugDisplay();
-            }, 2000);
-        }
-        
-        function handleMotion(event) {
-            // Use accelerationIncludingGravity for tilt detection (like reference example)
-            if (event.accelerationIncludingGravity) {
-                const g = event.accelerationIncludingGravity;
-                
-                // Map tilt to grid offset (similar to reference but scaled for grid movement)
-                // Negating y because device coordinate system is opposite to screen
-                targetOffsetX = map(g.x, -5, 5, -100, 100);
-                targetOffsetY = map(-g.y, -5, 5, -100, 100);
-                
-                // Store for display
-                motion.x = g.x;
-                motion.y = g.y;
-                motion.z = g.z;
-                
-                // Update debug display
-                debugInfo.push(`Motion: x=${g.x.toFixed(2)}, y=${g.y.toFixed(2)}`);
-                
-                // Update status to show it's working
-                if (!permissionGranted) {
-                    permissionGranted = true;
-                    const status = document.getElementById('status');
-                    status.innerHTML = '<small>Device motion active!</small>';
-                    debugInfo.push('Device motion detected');
-                    updateDebugDisplay();
-                }
-            }
-            
-            updateOrientationDisplay();
-        }
-        
-        function handleOrientation(event) {
-            // Store orientation data (keeping for display purposes)
-            orientation.alpha = event.alpha || 0; // Z-axis rotation (compass)
-            orientation.beta = event.beta || 0;   // X-axis rotation (tilt front/back)
-            orientation.gamma = event.gamma || 0; // Y-axis rotation (tilt left/right)
-            
-            // Update info display
-            updateOrientationDisplay();
-        }
-        
-        function updateOrientationDisplay() {
-            const orientationData = document.getElementById('orientation-data');
-            orientationData.innerHTML = 
-                `Motion: x=${motion.x.toFixed(1)} y=${motion.y.toFixed(1)}<br>` +
-                `Orientation: γ=${orientation.gamma.toFixed(1)}° β=${orientation.beta.toFixed(1)}°`;
-        }
-        
-        function draw() {
-            background(255); // White background
-            
-            if (!maskCanvas || !gridCanvas || width <= 0 || height <= 0) {
+        // Initialize the app
+        function init() {
+            if (!isMobileDevice()) {
+                warning.textContent = "This app is designed for mobile devices. Please visit on a mobile device or resize your browser window.";
+                warning.style.display = 'block';
                 return;
             }
             
-            updateGridOffset();
-            
-            // Smooth interpolation to target offset
-            gridOffsetX = lerp(gridOffsetX, targetOffsetX, 0.05);
-            gridOffsetY = lerp(gridOffsetY, targetOffsetY, 0.05);
-            
-            // Clear and draw mask
-            maskCanvas.clear();
-            maskCanvas.fill(255);
-            maskCanvas.noStroke();
-            
-            for (let circle of circles) {
-                maskCanvas.ellipse(circle.x, circle.y, circle.radius * 2);
+            // Check if DeviceOrientationEvent is available
+            if (typeof DeviceOrientationEvent === 'undefined') {
+                warning.style.display = 'block';
+                return;
             }
             
-            // Draw the grid
-            drawGrid();
-            
-            // Apply masking
+            // Check if we need permission (iOS 13+)
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                startButton.addEventListener('click', requestPermission);
+            } else {
+                // For other devices, try to start directly
+                startButton.addEventListener('click', startMotionTracking);
+            }
+        }
+        
+        // Request permission for iOS devices
+        async function requestPermission() {
             try {
-                gridCanvas.drawingContext.save();
-                gridCanvas.drawingContext.globalCompositeOperation = 'destination-in';
-                gridCanvas.drawingContext.drawImage(maskCanvas.canvas, 0, 0);
-                gridCanvas.drawingContext.restore();
-                
-                image(gridCanvas, 0, 0);
-            } catch (e) {
-                console.warn('Error applying mask:', e);
-            }
-            
-            // Add new circles randomly
-            if (random() < 0.02) {
-                addCircle(random(width), random(height));
-            }
-            
-            // Update circles
-            for (let i = circles.length - 1; i >= 0; i--) {
-                circles[i].life -= 0.5;
-                if (circles[i].life <= 0) {
-                    circles.splice(i, 1);
+                const permission = await DeviceOrientationEvent.requestPermission();
+                if (permission === 'granted') {
+                    startMotionTracking();
+                } else {
+                    warning.textContent = "Motion permission denied. Please reload and grant permission.";
+                    warning.style.display = 'block';
                 }
+            } catch (error) {
+                console.error('Error requesting permission:', error);
+                startMotionTracking(); // Try anyway for non-iOS devices
             }
         }
         
-        function drawGrid() {
-            var r_size = 6;
-            var b_size = 9;
-            var g_width = 6;
-            var g_height = 3;
-            var h_padding = 2;
-            var v_padding = 2;
-            var grid_spacing = b_size + h_padding;
+        // Start tracking device motion
+        function startMotionTracking() {
+            isMotionEnabled = true;
+            permissionPanel.style.display = 'none';
+            canvasContainer.style.display = 'block';
+            valuesDisplay.style.display = 'block';
             
-            gridCanvas.clear();
-            gridCanvas.background(0); // Black background
-            gridCanvas.noStroke();
-            gridCanvas.rectMode(CENTER);
+            // Add event listener for device orientation
+            window.addEventListener('deviceorientation', handleOrientation);
             
-            gridCanvas.push();
+            // Start the animation loop
+            animate();
+        }
+        
+        // Handle device orientation changes
+        function handleOrientation(event) {
+            const alpha = event.alpha || 0; // Z axis rotation (compass)
+            const beta = event.beta || 0;   // X axis rotation (front-back tilt)
+            const gamma = event.gamma || 0; // Y axis rotation (left-right tilt)
             
-            // Apply offset for movement
-            gridCanvas.translate(gridOffsetX, gridOffsetY);
+            // Get compass heading (iOS specific)
+            const compass = event.webkitCompassHeading || alpha;
             
-            // Position and rotate
-            gridCanvas.translate(gridCanvas.width/2, -gridCanvas.height/2);
-            gridCanvas.rotate(PI/4);
+            // Update display values
+            document.getElementById('alpha').textContent = alpha.toFixed(1);
+            document.getElementById('beta').textContent = beta.toFixed(1);
+            document.getElementById('gamma').textContent = gamma.toFixed(1);
+            document.getElementById('compass').textContent = compass.toFixed(1);
             
-            // Draw grid - expanded range for coverage
-            for(var i = -100; i < 200; i++) {
-                for(var j = -100; j < 200; j++) {
-                    var x = j * grid_spacing;
-                    var y = i * grid_spacing;
-                    
-                    if(i % 2 == 0) {
-                        // red/green row
-                        if(j % 2 == 0) {
-                            gridCanvas.fill(255, 0, 0); // Red
-                            gridCanvas.rect(x, y, r_size, r_size);
-                        } else {
-                            gridCanvas.fill(0, 255, 0); // Green
-                            gridCanvas.rect(x, y, g_width, g_height);
-                        }
-                    } else {
-                        // blue/green row
-                        if(j % 2 == 0) {
-                            gridCanvas.fill(0, 255, 0); // Green  
-                            gridCanvas.rect(x, y, g_height, g_width);
-                        } else {
-                            gridCanvas.fill(0, 51, 255); // Blue #007bff
-                            gridCanvas.rect(x, y, b_size, b_size);
-                        }
-                    }
-                }
+            // Calculate circle position based on device tilt
+            // Beta controls Y movement (forward/back tilt)
+            // Gamma controls X movement (left/right tilt)
+            
+            // Normalize the tilt values and apply to circle position
+            // Beta range: -180 to 180, but useful range is roughly -45 to 45
+            // Gamma range: -90 to 90
+            
+            const normalizedX = Math.max(-1, Math.min(1, gamma / 45));
+            const normalizedY = Math.max(-1, Math.min(1, beta / 45));
+            
+            // Apply movement with falloff
+            currentX += normalizedX * 2;
+            currentY += normalizedY * 2;
+            
+            // Apply falloff (return to center)
+            currentX *= falloffRate;
+            currentY *= falloffRate;
+            
+            // Limit to maximum radius
+            const distance = Math.sqrt(currentX * currentX + currentY * currentY);
+            if (distance > maxRadius) {
+                const scale = maxRadius / distance;
+                currentX *= scale;
+                currentY *= scale;
             }
-            
-            gridCanvas.pop();
         }
         
-        function updateGridOffset() {
-            // If device motion is not available or not working, use mouse position
-            if (!permissionGranted) {
-                targetOffsetX = map(mouseX, 0, width, -100, 100);
-                targetOffsetY = map(mouseY, 0, height, -100, 100);
+        // Animation loop
+        function animate() {
+            if (isMotionEnabled) {
+                // Update circle position
+                circle.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
+                requestAnimationFrame(animate);
             }
-            // Otherwise, motion events will update targetOffsetX/Y directly
         }
         
-        function addCircle(x, y) {
-            // Constrain circles to screen bounds
-            x = constrain(x, 0, width);
-            y = constrain(y, 0, height);
-            
-            circles.push({
-                x: x,
-                y: y,
-                radius: random(1.5, 4), // Small raindrop size
-                life: 255,
-                maxLife: 255
-            });
-            
-            debugInfo.push(`Circle added at ${x.toFixed(1)}, ${y.toFixed(1)}`);
-            updateDebugDisplay();
-        }
+        // Initialize when page loads
+        window.addEventListener('load', init);
         
-        function windowResized() {
-            // Update display info
-            displayInfo.windowWidth = window.innerWidth;
-            displayInfo.windowHeight = window.innerHeight;
-            
-            debugInfo.push(`Window resized: ${displayInfo.windowWidth}x${displayInfo.windowHeight}`);
-            
-            // Resize canvas
-            resizeCanvas(displayInfo.windowWidth, displayInfo.windowHeight);
-            
-            // Handle retina displays
-            pixelDensity(displayInfo.pixelDensity);
-            
-            displayInfo.canvasWidth = displayInfo.windowWidth;
-            displayInfo.canvasHeight = displayInfo.windowHeight;
-            
-            debugInfo.push(`Canvas resized: ${displayInfo.canvasWidth}x${displayInfo.canvasHeight}`);
-            
-            if (width > 0 && height > 0) {
-                if (maskCanvas) maskCanvas.remove();
-                if (gridCanvas) gridCanvas.remove();
-                
-                maskCanvas = createGraphics(displayInfo.canvasWidth, displayInfo.canvasHeight);
-                gridCanvas = createGraphics(displayInfo.canvasWidth, displayInfo.canvasHeight);
-                
-                // Set pixel density for offscreen canvases too
-                maskCanvas.pixelDensity(displayInfo.pixelDensity);
-                gridCanvas.pixelDensity(displayInfo.pixelDensity);
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (!isMobileDevice() && isMotionEnabled) {
+                // Optionally handle resize for mobile devices in landscape/portrait
+                const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+                const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+                maxRadius = Math.min(vw, vh) / 4; // Adjust max radius based on screen size
             }
-            
-            updateDebugDisplay();
-        }
-        
-        function mousePressed() {
-            // Use proper mouse coordinates
-            addCircle(mouseX, mouseY);
-        }
-        
-        function touchStarted() {
-            // Handle touch events properly
-            if (touches.length > 0) {
-                // Use the touch coordinates directly - p5.js already handles coordinate conversion
-                addCircle(touches[0].x, touches[0].y);
-                debugInfo.push(`Touch at ${touches[0].x.toFixed(1)}, ${touches[0].y.toFixed(1)}`);
-                updateDebugDisplay();
-            }
-            return false; // Prevent default behavior
-        }
+        });
     </script>
 </body>
 </html>
