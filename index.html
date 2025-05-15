@@ -213,12 +213,13 @@
         const gridContainer = document.getElementById('grid-container');
         
         // Grid drawing parameters
-        const r_size = 6;
-        const b_size = 9;
-        const g_width = 6;
-        const g_height = 3;
-        const h_padding = 2;
-        const v_padding = 2;
+        const gridFactor = 2.0;
+        const r_size = 6 / gridFactor;
+        const b_size = 9 / gridFactor;
+        const g_width = 6 / gridFactor;
+        const g_height = 3 / gridFactor;
+        const h_padding = 1 / gridFactor;
+        const v_padding = 1 / gridFactor;
         const grid_spacing = b_size + h_padding;
         
         // Initialize canvas and mask circles
