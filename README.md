@@ -1,6 +1,7 @@
-# 💦 Droplets 🟥🟩🟦
+# 💦 Droplets
 Simulating the way tiny rain drops look on a screen
 
+📱 🔬 🟥 🟩 🟦
 ### To Do
 - [ ] Use SVG for pixels (sharper contrast on retina)
 - [ ] Add shadow to the droplets, rotate w/ orientation
