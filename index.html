@@ -96,6 +96,9 @@
         };
         
         function setup() {
+            // Draw smooth graphics
+            smooth();
+
             // Get the device pixel ratio for retina support
             displayInfo.pixelDensity = window.devicePixelRatio || 1;
             displayInfo.windowWidth = window.innerWidth;
@@ -106,9 +109,9 @@
             
             // Handle retina displays properly
             pixelDensity(displayInfo.pixelDensity);
-            
-            displayInfo.canvasWidth = width;
-            displayInfo.canvasHeight = height;
+
+            displayInfo.canvasWidth = displayInfo.windowWidth;
+            displayInfo.canvasHeight = displayInfo.windowHeight;
             
             debugInfo.push(`Window: ${displayInfo.windowWidth}x${displayInfo.windowHeight}`);
             debugInfo.push(`Canvas: ${displayInfo.canvasWidth}x${displayInfo.canvasHeight}`);
@@ -116,11 +119,12 @@
             
             // Ensure canvas has valid dimensions before creating graphics
             if (width > 0 && height > 0) {
-                maskCanvas = createGraphics(width, height);
-                gridCanvas = createGraphics(width, height);
+                maskCanvas = createGraphics(displayInfo.windowWidth, displayInfo.windowHeight);
+                gridCanvas = createGraphics(displayInfo.windowWidth, displayInfo.windowHeight);
                 
                 // Set pixel density for offscreen canvases too
                 maskCanvas.pixelDensity(displayInfo.pixelDensity);
+                maskCanvas.smooth();
                 gridCanvas.pixelDensity(displayInfo.pixelDensity);
             }
             
@@ -420,7 +424,7 @@
                             gridCanvas.fill(0, 255, 0); // Green  
                             gridCanvas.rect(x, y, g_height, g_width);
                         } else {
-                            gridCanvas.fill(0, 0, 255); // Blue
+                            gridCanvas.fill(0, 51, 255); // Blue #007bff
                             gridCanvas.rect(x, y, b_size, b_size);
                         }
                     }
@@ -468,8 +472,8 @@
             // Handle retina displays
             pixelDensity(displayInfo.pixelDensity);
             
-            displayInfo.canvasWidth = width;
-            displayInfo.canvasHeight = height;
+            displayInfo.canvasWidth = displayInfo.windowWidth;
+            displayInfo.canvasHeight = displayInfo.windowHeight;
             
             debugInfo.push(`Canvas resized: ${displayInfo.canvasWidth}x${displayInfo.canvasHeight}`);
             
@@ -477,8 +481,8 @@
                 if (maskCanvas) maskCanvas.remove();
                 if (gridCanvas) gridCanvas.remove();
                 
-                maskCanvas = createGraphics(width, height);
-                gridCanvas = createGraphics(width, height);
+                maskCanvas = createGraphics(displayInfo.canvasWidth, displayInfo.canvasHeight);
+                gridCanvas = createGraphics(displayInfo.canvasWidth, displayInfo.canvasHeight);
                 
                 // Set pixel density for offscreen canvases too
                 maskCanvas.pixelDensity(displayInfo.pixelDensity);
