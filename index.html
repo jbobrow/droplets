@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no" />
     <meta name="HandheldFriendly" content="true">
-    <title>Tilt Circle App</title>
+    <title>Droplets</title>
     <style>
         body {
             margin: 0;
@@ -34,18 +34,19 @@
         }
         
         #start-button {
-            background: #007AFF;
+            background: #000000;
             color: white;
             border: none;
             padding: 15px 30px;
             border-radius: 10px;
-            font-size: 18px;
+            font-size: 14px;
+            font-weight: bold;
             cursor: pointer;
             margin-top: 15px;
         }
         
         #start-button:hover {
-            background: #0051D5;
+            background: #333333;
         }
         
         #canvas-container {
@@ -160,9 +161,9 @@
 <body>
     <div id="container">
         <div id="permission-panel">
-            <h2>Tilt Circle App</h2>
-            <p>This app uses your device's motion sensors to control a grid pattern. Tilt your device to see the effect!</p>
-            <button id="start-button">Enable Motion Access</button>
+            <h2>💦 Droplets</h2>
+            <p>This app uses your device's motion sensors. Tilt your device to see the effect!</p>
+            <button id="start-button">make it rain</button>
             <div class="warning" id="warning">
                 Device motion is not available on this device or browser.
             </div>
@@ -183,8 +184,8 @@
                 <div>Gamma: <span id="gamma">0</span>°</div>
                 <div>Compass: <span id="compass">0</span>°</div>
             </div>
-            <button id="debug-toggle">Toggle Debug</button>
         </div>
+        <!-- <button id="debug-toggle">Debug</button> -->
     </div>
 
     <script>
@@ -301,7 +302,9 @@
             gridCanvas.clearRect(0, 0, gridCanvas.canvas.width, gridCanvas.canvas.height);
             
             // Black background
-            gridCanvas.fillStyle = 'black';
+            // shift background color based on movement
+            const alpha = Math.max(1.0 - (Math.sqrt(gridOffsetX*gridOffsetX + gridOffsetY*gridOffsetY) / 30.0), 0.0); // maxRadius
+            gridCanvas.fillStyle = 'rgba(0,0,0,alpha)';//'black';
             gridCanvas.fillRect(0, 0, gridCanvas.canvas.width, gridCanvas.canvas.height);
             
             gridCanvas.save();
