@@ -183,6 +183,7 @@
                 <div>Beta: <span id="beta">0</span>°</div>
                 <div>Gamma: <span id="gamma">0</span>°</div>
                 <div>Compass: <span id="compass">0</span>°</div>
+                <div>Circles: <span id="circle-count">0</span></div>
             </div>
         </div>
         <button id="debug-toggle">Debug</button>
@@ -201,6 +202,11 @@
         let gridOffsetX = 0;
         let gridOffsetY = 0;
         let maskCircles = [];
+        
+        // Rain effect variables
+        let nextCircleTime = 0;
+        let lastTime = 0;
+        let rainActive = false;
         
         // Get DOM elements
         const permissionPanel = document.getElementById('permission-panel');
@@ -223,46 +229,84 @@
         const v_padding = 0.5 / gridFactor;
         const grid_spacing = b_size + h_padding;
         
-        // Initialize canvas and mask circles
+        // Initialize canvas and start with no mask circles
         function initializeCanvas() {
             const canvas = document.getElementById('grid-canvas');
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             gridCanvas = canvas.getContext('2d');
             
-            // Create 20 random mask circles and apply them
-            createMaskCircles();
+            // Start with no circles
+            maskCircles = [];
             
             // Initial grid draw
             drawGrid();
+            
+            // Start rain effect
+            rainActive = true;
+            lastTime = performance.now();
+            scheduleNextCircle();
         }
         
-        // Create 20 random mask circles using CSS clip-path
-        function createMaskCircles() {
-            maskCircles = [];
+        // Schedule the next circle to appear
+        function scheduleNextCircle() {
+            // Random interval between 0.2 and 3 seconds
+            const minInterval = 200; // 0.2 seconds in ms
+            const maxInterval = 3000; // 3 seconds in ms
+            const interval = minInterval + Math.random() * (maxInterval - minInterval);
+            nextCircleTime = lastTime + interval;
+        }
+        
+        // Create a new rain droplet circle
+        function createRainCircle() {
+            // Random diameter between 4-10px (retina pixels)
+            const diameter = 4 + Math.random() * 6;
+            const radius = diameter / 2;
             
-            // Generate circle positions
-            for (let i = 0; i < 20; i++) {
-                // Random diameter between 4-10px (retina pixels)
-                const diameter = 4 + Math.random() * 6;
-                const radius = diameter / 2;
+            // Random position - ensure circles are fully visible
+            const x = radius + Math.random() * (window.innerWidth - diameter);
+            const y = radius + Math.random() * (window.innerHeight - diameter);
+            
+            // Random lifespan between 5-10 seconds
+            const lifespan = 5000 + Math.random() * 5000;
+            
+            const circle = {
+                x: x,
+                y: y,
+                radius: radius,
+                createdAt: lastTime,
+                lifespan: lifespan,
+                opacity: 1.0
+            };
+            
+            maskCircles.push(circle);
+            scheduleNextCircle();
+        }
+        
+        // Update circle opacities and remove expired circles
+        function updateRainCircles(currentTime) {
+            for (let i = maskCircles.length - 1; i >= 0; i--) {
+                const circle = maskCircles[i];
+                const age = currentTime - circle.createdAt;
                 
-                // Random position - ensure circles are fully visible
-                const x = radius + Math.random() * (window.innerWidth - diameter);
-                const y = radius + Math.random() * (window.innerHeight - diameter);
-                
-                maskCircles.push({
-                    x: x,
-                    y: y,
-                    radius: radius
-                });
+                if (age >= circle.lifespan) {
+                    // Remove expired circle
+                    maskCircles.splice(i, 1);
+                } else {
+                    // Update opacity based on age (fade out over time)
+                    const progress = age / circle.lifespan;
+                    // Fade starts at 70% of lifespan
+                    if (progress > 0.7) {
+                        const fadeProgress = (progress - 0.7) / 0.3;
+                        circle.opacity = 1.0 - fadeProgress;
+                    } else {
+                        circle.opacity = 1.0;
+                    }
+                }
             }
-            
-            // Apply masking to grid container
-            updateMask();
         }
         
-        // Update the CSS mask with current circle positions
+        // Update the CSS mask with current circle positions and opacities
         function updateMask() {
             // Create SVG mask with circles
             const maskId = 'circle-mask';
@@ -272,7 +316,7 @@
                         <mask id="${maskId}">
                             <rect width="100%" height="100%" fill="black"/>
                             ${maskCircles.map(circle => 
-                                `<circle cx="${circle.x}" cy="${circle.y}" r="${circle.radius}" fill="white"/>`
+                                `<circle cx="${circle.x}" cy="${circle.y}" r="${circle.radius}" fill="rgba(255,255,255,${circle.opacity})"/>`
                             ).join('')}
                         </mask>
                     </defs>
@@ -419,7 +463,7 @@
             //permissionPanel.style.display = 'none';   // keep it visible (it adds nice context...)
             canvasContainer.style.display = 'block';
             
-            // Initialize canvas and circles
+            // Initialize canvas and start rain
             initializeCanvas();
             
             // Add event listener for device orientation
@@ -444,6 +488,7 @@
                 document.getElementById('beta').textContent = beta.toFixed(1);
                 document.getElementById('gamma').textContent = gamma.toFixed(1);
                 document.getElementById('compass').textContent = compass.toFixed(1);
+                document.getElementById('circle-count').textContent = maskCircles.length;
             }
             
             // Calculate offset based on device tilt
@@ -474,6 +519,20 @@
         // Animation loop
         function animate() {
             if (isMotionEnabled) {
+                const currentTime = performance.now();
+                lastTime = currentTime;
+                
+                // Check if it's time to add a new circle
+                if (rainActive && currentTime >= nextCircleTime) {
+                    createRainCircle();
+                }
+                
+                // Update existing circles
+                updateRainCircles(currentTime);
+                
+                // Update mask with current circles
+                updateMask();
+                
                 // Update debug circle position (only if debug mode is on)
                 if (debugMode) {
                     debugCircle.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
@@ -497,8 +556,8 @@
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
                 
-                // Recreate mask circles for new screen size
-                createMaskCircles();
+                // Update mask with current circles
+                updateMask();
                 
                 // Adjust max radius based on screen size
                 const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
