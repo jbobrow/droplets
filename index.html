@@ -218,8 +218,8 @@
         const b_size = 9 / gridFactor;
         const g_width = 6 / gridFactor;
         const g_height = 3 / gridFactor;
-        const h_padding = 1 / gridFactor;
-        const v_padding = 1 / gridFactor;
+        const h_padding = 0.5 / gridFactor;
+        const v_padding = 0.5 / gridFactor;
         const grid_spacing = b_size + h_padding;
         
         // Initialize canvas and mask circles
@@ -322,19 +322,19 @@
                     if(i % 2 == 0) {
                         // red/green row
                         if(j % 2 == 0) {
-                            gridCanvas.fillStyle = 'rgba(255,0,0,1.0)';  //'red';
+                            gridCanvas.fillStyle = 'rgba(255,50,50,1.0)';  //'red';
                             drawRect(x, y, r_size, r_size);
                         } else {
-                            gridCanvas.fillStyle = 'rgba(0,255,0,1.0)';  //'green';
+                            gridCanvas.fillStyle = 'rgba(50,255,50,1.0)';  //'green';
                             drawRect(x, y, g_width, g_height);
                         }
                     } else {
                         // blue/green row
                         if(j % 2 == 0) {
-                            gridCanvas.fillStyle = 'rgba(0,255,0,1.0)';  //'green';
+                            gridCanvas.fillStyle = 'rgba(50,255,50,1.0)';  //'green';
                             drawRect(x, y, g_height, g_width);
                         } else {
-                            gridCanvas.fillStyle = 'rgba(0,51,255,1.0)';  //'blue';
+                            gridCanvas.fillStyle = 'rgba(50,100,255,1.0)';  //'blue';
                             drawRect(x, y, b_size, b_size);
                         }
                     }
