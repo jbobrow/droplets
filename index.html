@@ -3,17 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raindrop RGB Grid</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <title>Droplets</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.11.7/lib/p5.min.js"></script>
     <style>
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #permission-button {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            z-index: 1000;
+        }
+        #permission-button:hover {
+            background-color: #0056b3;
+        }
+        #info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: #333;
+            background: rgba(255,255,255,0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 200px;
         }
     </style>
 </head>
 <body>
+    <button id="permission-button">Enable Device Motion</button>
+    <div id="info">
+        <div>Tilt your device to move the pattern</div>
+        <div>Tap/click to add droplets</div>
+        <div id="orientation-data"></div>
+    </div>
+
     <script>
         let circles = [];
         let gridOffsetX = 0;
@@ -22,6 +59,9 @@
         let targetOffsetY = 0;
         let maskCanvas;
         let gridCanvas;
+        let permissionGranted = false;
+        let orientation = { alpha: 0, beta: 0, gamma: 0 };
+        let motion = { x: 0, y: 0, z: 0 };
         
         function setup() {
             createCanvas(windowWidth, windowHeight);
@@ -32,24 +72,119 @@
                 gridCanvas = createGraphics(width, height);
             }
             
-            // Request device orientation permission (iOS 13+)
-            if (typeof DeviceOrientationEvent !== 'undefined' && 
-                typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            window.addEventListener('deviceorientation', handleOrientation);
-                        }
-                    })
-                    .catch(console.error);
+            // Show permission button if device motion/orientation is supported
+            checkForDeviceSupport();
+            
+            // Set up permission button
+            const button = document.getElementById('permission-button');
+            button.addEventListener('click', requestPermissions);
+        }
+        
+        function checkForDeviceSupport() {
+            const button = document.getElementById('permission-button');
+            const info = document.getElementById('info');
+            
+            // Check if device supports orientation/motion events
+            if (typeof DeviceOrientationEvent !== 'undefined' || 
+                typeof DeviceMotionEvent !== 'undefined') {
+                
+                // Check if we need to request permission (iOS 13+ and some Android)
+                if (typeof DeviceOrientationEvent.requestPermission === 'function' ||
+                    typeof DeviceMotionEvent.requestPermission === 'function') {
+                    button.style.display = 'block';
+                    info.innerHTML += '<br><small>Permission required for device motion</small>';
+                } else {
+                    // Older devices or browsers that don't require permission
+                    setupOrientationListeners();
+                    permissionGranted = true;
+                    info.innerHTML += '<br><small>Device motion enabled</small>';
+                }
             } else {
+                // Fallback to mouse/touch if no device motion support
+                info.innerHTML += '<br><small>Using mouse/touch input</small>';
+                permissionGranted = false;
+            }
+        }
+        
+        async function requestPermissions() {
+            const button = document.getElementById('permission-button');
+            const info = document.getElementById('info');
+            
+            try {
+                let orientationPermission = 'granted';
+                let motionPermission = 'granted';
+                
+                // Request DeviceOrientationEvent permission
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    orientationPermission = await DeviceOrientationEvent.requestPermission();
+                }
+                
+                // Request DeviceMotionEvent permission
+                if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                    motionPermission = await DeviceMotionEvent.requestPermission();
+                }
+                
+                if (orientationPermission === 'granted' || motionPermission === 'granted') {
+                    setupOrientationListeners();
+                    button.style.display = 'none';
+                    permissionGranted = true;
+                    info.innerHTML = info.innerHTML.replace('<br><small>Permission required for device motion</small>', 
+                                                          '<br><small>Device motion enabled!</small>');
+                } else {
+                    alert('Permission denied. Using mouse/touch input instead.');
+                    button.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error requesting permission:', error);
+                alert('Error requesting permission. Using mouse/touch input instead.');
+                button.style.display = 'none';
+            }
+        }
+        
+        function setupOrientationListeners() {
+            // Listen to device orientation events
+            if (window.DeviceOrientationEvent) {
                 window.addEventListener('deviceorientation', handleOrientation);
+            }
+            
+            // Listen to device motion events (for acceleration data)
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', handleMotion);
             }
         }
         
         function handleOrientation(event) {
-            targetOffsetX = map(event.gamma || 0, -45, 45, -50, 50);
-            targetOffsetY = map(event.beta || 0, -45, 45, -50, 50);
+            // Store orientation data
+            orientation.alpha = event.alpha || 0; // Z-axis rotation (compass)
+            orientation.beta = event.beta || 0;   // X-axis rotation (tilt front/back)
+            orientation.gamma = event.gamma || 0; // Y-axis rotation (tilt left/right)
+            
+            // Use gamma and beta for movement (more intuitive)
+            targetOffsetX = map(orientation.gamma, -45, 45, -100, 100);
+            targetOffsetY = map(orientation.beta, -45, 45, -100, 100);
+            
+            // Update info display
+            updateOrientationDisplay();
+        }
+        
+        function handleMotion(event) {
+            // Store motion data (acceleration)
+            if (event.acceleration) {
+                motion.x = event.acceleration.x || 0;
+                motion.y = event.acceleration.y || 0;
+                motion.z = event.acceleration.z || 0;
+                
+                // You could use motion data for additional effects
+                // For example, shake detection or additional movement influence
+            }
+        }
+        
+        function updateOrientationDisplay() {
+            const orientationData = document.getElementById('orientation-data');
+            orientationData.innerHTML = 
+                `γ: ${orientation.gamma.toFixed(1)}° ` +
+                `β: ${orientation.beta.toFixed(1)}° ` +
+                `α: ${orientation.alpha.toFixed(1)}°`;
         }
         
         function draw() {
@@ -60,6 +195,8 @@
             }
             
             updateGridOffset();
+            
+            // Smooth interpolation to target offset
             gridOffsetX = lerp(gridOffsetX, targetOffsetX, 0.05);
             gridOffsetY = lerp(gridOffsetY, targetOffsetY, 0.05);
             
@@ -72,7 +209,7 @@
                 maskCanvas.ellipse(circle.x, circle.y, circle.radius * 2);
             }
             
-            // Draw the grid using your function
+            // Draw the grid
             drawGrid();
             
             // Apply masking
@@ -87,7 +224,7 @@
                 console.warn('Error applying mask:', e);
             }
             
-            // Add new circles
+            // Add new circles randomly
             if (random() < 0.02) {
                 addCircle(random(width), random(height));
             }
@@ -156,9 +293,10 @@
         }
         
         function updateGridOffset() {
-            if (!window.DeviceOrientationEvent) {
-                targetOffsetX = map(mouseX, 0, width, -30, 30);
-                targetOffsetY = map(mouseY, 0, height, -30, 30);
+            // If device motion is not available or not granted, use mouse position
+            if (!permissionGranted) {
+                targetOffsetX = map(mouseX, 0, width, -50, 50);
+                targetOffsetY = map(mouseY, 0, height, -50, 50);
             }
         }
         
@@ -192,7 +330,20 @@
             if (touches.length > 0) {
                 addCircle(touches[0].x, touches[0].y);
             }
-            return false;
+            return false; // Prevent default behavior
+        }
+        
+        // Optional: Add shake detection using device motion
+        function detectShake() {
+            const threshold = 15; // Acceleration threshold for shake
+            const totalAcceleration = Math.abs(motion.x) + Math.abs(motion.y) + Math.abs(motion.z);
+            
+            if (totalAcceleration > threshold) {
+                // Add multiple droplets when shaking
+                for (let i = 0; i < 5; i++) {
+                    addCircle(random(width), random(height));
+                }
+            }
         }
     </script>
 </body>
