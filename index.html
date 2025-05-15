@@ -55,6 +55,7 @@
             height: 100%;
         }
         
+        /* Debug elements - hidden by default */
         #crosshairs {
             position: absolute;
             top: 50%;
@@ -63,6 +64,7 @@
             width: 60px;
             height: 60px;
             pointer-events: none;
+            display: none;
         }
         
         .crosshair-line {
@@ -86,7 +88,7 @@
             transform: translateX(-50%);
         }
         
-        #circle {
+        #debug-circle {
             position: absolute;
             width: 40px;
             height: 40px;
@@ -96,6 +98,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             transition: transform 0.1s ease-out;
+            display: none;
         }
         
         .warning {
@@ -115,13 +118,42 @@
             font-family: monospace;
             display: none;
         }
+        
+        /* New styles for grid and masking circles */
+        #grid-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .mask-circle {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        
+        /* Debug mode toggle */
+        #debug-toggle {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.1);
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div id="container">
         <div id="permission-panel">
             <h2>Tilt Circle App</h2>
-            <p>This app uses your device's motion sensors to control a circle. Tilt your device to move the circle around!</p>
+            <p>This app uses your device's motion sensors to control a grid pattern. Tilt your device to see the effect!</p>
             <button id="start-button">Enable Motion Access</button>
             <div class="warning" id="warning">
                 Device motion is not available on this device or browser.
@@ -129,17 +161,19 @@
         </div>
         
         <div id="canvas-container" style="display: none;">
+            <canvas id="grid-canvas"></canvas>
             <div id="crosshairs">
                 <div class="crosshair-line horizontal"></div>
                 <div class="crosshair-line vertical"></div>
             </div>
-            <div id="circle"></div>
+            <div id="debug-circle"></div>
             <div class="values-display" id="values">
                 <div>Alpha: <span id="alpha">0</span>°</div>
                 <div>Beta: <span id="beta">0</span>°</div>
                 <div>Gamma: <span id="gamma">0</span>°</div>
                 <div>Compass: <span id="compass">0</span>°</div>
             </div>
+            <button id="debug-toggle">Toggle Debug</button>
         </div>
     </div>
 
@@ -149,14 +183,131 @@
         let currentX = 0;
         let currentY = 0;
         let falloffRate = 0.85; // How quickly the circle returns to center
+        let debugMode = false;
+        
+        // Grid variables
+        let gridCanvas;
+        let gridOffsetX = 0;
+        let gridOffsetY = 0;
+        let maskCircles = [];
         
         // Get DOM elements
         const permissionPanel = document.getElementById('permission-panel');
         const canvasContainer = document.getElementById('canvas-container');
         const startButton = document.getElementById('start-button');
         const warning = document.getElementById('warning');
-        const circle = document.getElementById('circle');
+        const debugCircle = document.getElementById('debug-circle');
+        const crosshairs = document.getElementById('crosshairs');
         const valuesDisplay = document.getElementById('values');
+        const debugToggle = document.getElementById('debug-toggle');
+        
+        // Grid drawing parameters
+        const r_size = 6;
+        const b_size = 9;
+        const g_width = 6;
+        const g_height = 3;
+        const h_padding = 2;
+        const v_padding = 2;
+        const grid_spacing = b_size + h_padding;
+        
+        // Initialize canvas and mask circles
+        function initializeCanvas() {
+            const canvas = document.getElementById('grid-canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gridCanvas = canvas.getContext('2d');
+            
+            // Create 20 random mask circles
+            createMaskCircles();
+            
+            // Initial grid draw
+            drawGrid();
+        }
+        
+        // Create 20 random mask circles
+        function createMaskCircles() {
+            // Clear existing circles
+            maskCircles.forEach(circle => circle.element.remove());
+            maskCircles = [];
+            
+            for (let i = 0; i < 20; i++) {
+                const circle = document.createElement('div');
+                circle.className = 'mask-circle';
+                
+                // Random diameter between 4-10px (retina pixels)
+                const diameter = 4 + Math.random() * 6;
+                circle.style.width = diameter + 'px';
+                circle.style.height = diameter + 'px';
+                
+                // Random position
+                const x = Math.random() * window.innerWidth;
+                const y = Math.random() * window.innerHeight;
+                circle.style.left = x + 'px';
+                circle.style.top = y + 'px';
+                
+                canvasContainer.appendChild(circle);
+                maskCircles.push({
+                    element: circle,
+                    x: x,
+                    y: y,
+                    diameter: diameter
+                });
+            }
+        }
+        
+        // Draw the grid pattern
+        function drawGrid() {
+            // Clear canvas
+            gridCanvas.clearRect(0, 0, gridCanvas.canvas.width, gridCanvas.canvas.height);
+            
+            // Black background
+            gridCanvas.fillStyle = 'black';
+            gridCanvas.fillRect(0, 0, gridCanvas.canvas.width, gridCanvas.canvas.height);
+            
+            gridCanvas.save();
+            
+            // Apply offset for movement
+            gridCanvas.translate(gridOffsetX, gridOffsetY);
+            
+            // Position and rotate
+            gridCanvas.translate(gridCanvas.canvas.width/2, gridCanvas.canvas.height/2);
+            gridCanvas.rotate(Math.PI/4);
+            
+            // Draw grid - expanded range for coverage
+            for(let i = -100; i < 200; i++) {
+                for(let j = -100; j < 200; j++) {
+                    const x = j * grid_spacing;
+                    const y = i * grid_spacing;
+                    
+                    if(i % 2 == 0) {
+                        // red/green row
+                        if(j % 2 == 0) {
+                            gridCanvas.fillStyle = 'red';
+                            drawRect(x, y, r_size, r_size);
+                        } else {
+                            gridCanvas.fillStyle = 'green';
+                            drawRect(x, y, g_width, g_height);
+                        }
+                    } else {
+                        // blue/green row
+                        if(j % 2 == 0) {
+                            gridCanvas.fillStyle = 'green';
+                            drawRect(x, y, g_height, g_width);
+                        } else {
+                            gridCanvas.fillStyle = 'blue';
+                            drawRect(x, y, b_size, b_size);
+                        }
+                    }
+                }
+            }
+            
+            gridCanvas.restore();
+        }
+        
+        // Helper function to draw centered rectangles
+        function drawRect(x, y, width, height) {
+            gridCanvas.fillRect(x - width/2, y - height/2, width, height);
+        }
         
         // Check if we're on a mobile device or mobile-sized screen
         function isMobileDevice() {
@@ -184,6 +335,23 @@
                 // For other devices, try to start directly
                 startButton.addEventListener('click', startMotionTracking);
             }
+            
+            // Add debug toggle listener
+            debugToggle.addEventListener('click', toggleDebugMode);
+        }
+        
+        // Toggle debug mode
+        function toggleDebugMode() {
+            debugMode = !debugMode;
+            if (debugMode) {
+                crosshairs.style.display = 'block';
+                debugCircle.style.display = 'block';
+                valuesDisplay.style.display = 'block';
+            } else {
+                crosshairs.style.display = 'none';
+                debugCircle.style.display = 'none';
+                valuesDisplay.style.display = 'none';
+            }
         }
         
         // Request permission for iOS devices
@@ -207,7 +375,9 @@
             isMotionEnabled = true;
             permissionPanel.style.display = 'none';
             canvasContainer.style.display = 'block';
-            valuesDisplay.style.display = 'block';
+            
+            // Initialize canvas and circles
+            initializeCanvas();
             
             // Add event listener for device orientation
             window.addEventListener('deviceorientation', handleOrientation);
@@ -225,20 +395,15 @@
             // Get compass heading (iOS specific)
             const compass = event.webkitCompassHeading || alpha;
             
-            // Update display values
-            document.getElementById('alpha').textContent = alpha.toFixed(1);
-            document.getElementById('beta').textContent = beta.toFixed(1);
-            document.getElementById('gamma').textContent = gamma.toFixed(1);
-            document.getElementById('compass').textContent = compass.toFixed(1);
+            // Update display values (only if debug mode is on)
+            if (debugMode) {
+                document.getElementById('alpha').textContent = alpha.toFixed(1);
+                document.getElementById('beta').textContent = beta.toFixed(1);
+                document.getElementById('gamma').textContent = gamma.toFixed(1);
+                document.getElementById('compass').textContent = compass.toFixed(1);
+            }
             
-            // Calculate circle position based on device tilt
-            // Beta controls Y movement (forward/back tilt)
-            // Gamma controls X movement (left/right tilt)
-            
-            // Normalize the tilt values and apply to circle position
-            // Beta range: -180 to 180, but useful range is roughly -45 to 45
-            // Gamma range: -90 to 90
-            
+            // Calculate offset based on device tilt
             const normalizedX = Math.max(-1, Math.min(1, gamma / 45));
             const normalizedY = Math.max(-1, Math.min(1, beta / 45));
             
@@ -257,13 +422,23 @@
                 currentX *= scale;
                 currentY *= scale;
             }
+            
+            // Update grid offset
+            gridOffsetX = currentX;
+            gridOffsetY = currentY;
         }
         
         // Animation loop
         function animate() {
             if (isMotionEnabled) {
-                // Update circle position
-                circle.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
+                // Update debug circle position (only if debug mode is on)
+                if (debugMode) {
+                    debugCircle.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
+                }
+                
+                // Redraw grid with new offset
+                drawGrid();
+                
                 requestAnimationFrame(animate);
             }
         }
@@ -273,11 +448,19 @@
         
         // Handle window resize
         window.addEventListener('resize', () => {
-            if (!isMobileDevice() && isMotionEnabled) {
-                // Optionally handle resize for mobile devices in landscape/portrait
+            if (isMotionEnabled) {
+                // Resize canvas
+                const canvas = document.getElementById('grid-canvas');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                // Recreate mask circles for new screen size
+                createMaskCircles();
+                
+                // Adjust max radius based on screen size
                 const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
                 const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
-                maxRadius = Math.min(vw, vh) / 4; // Adjust max radius based on screen size
+                maxRadius = Math.min(vw, vh) / 4;
             }
         });
     </script>
