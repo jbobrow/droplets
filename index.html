@@ -250,10 +250,10 @@
         
         // Schedule the next circle to appear
         function scheduleNextCircle() {
-            // Random interval between 0.1 and 2 seconds
-            const minInterval = 100; // 0.2 seconds in ms
-            const maxInterval = 2000; // 3 seconds in ms
-            const interval = minInterval + (Math.random()*Math.random()) * (maxInterval - minInterval);
+            // Random interval between 0.2 and 3 seconds
+            const minInterval = 200; // 0.2 seconds in ms
+            const maxInterval = 3000; // 3 seconds in ms
+            const interval = minInterval + Math.random() * Math.random() * (maxInterval - minInterval);
             nextCircleTime = lastTime + interval;
         }
         
@@ -295,9 +295,9 @@
                 } else {
                     // Update opacity based on age (fade out over time)
                     const progress = age / circle.lifespan;
-                    // Fade starts at 50% of lifespan
-                    if (progress > 0.5) {
-                        const fadeProgress = Math.sqrt((progress - 0.5) * 2);
+                    // Fade starts at 70% of lifespan
+                    if (progress > 0.7) {
+                        const fadeProgress = ((progress - 0.7) / 0.3) * ((progress - 0.7) / 0.3);
                         circle.opacity = 1.0 - fadeProgress;
                     } else {
                         circle.opacity = 1.0;
@@ -308,8 +308,8 @@
         
         // Update the CSS mask with current circle positions and opacities
         function updateMask() {
-            // Create SVG mask with circles
-            const maskId = 'circle-mask';
+            // Create a unique mask ID using timestamp to force browser refresh
+            const maskId = `circle-mask-${Date.now()}`;
             let svgMask = `
                 <svg width="0" height="0" style="position: absolute;">
                     <defs>
@@ -335,9 +335,12 @@
             maskSvg.innerHTML = svgMask;
             document.body.appendChild(maskSvg);
             
-            // Apply mask to grid container
+            // Apply mask to grid container with the unique ID
             gridContainer.style.mask = `url(#${maskId})`;
             gridContainer.style.webkitMask = `url(#${maskId})`;
+            
+            // Force a reflow to ensure the browser recognizes the change
+            gridContainer.offsetHeight;
         }
         
         // Draw the grid pattern
