@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raindrop RGB Grid</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        let circles = [];
+        let gridOffsetX = 0;
+        let gridOffsetY = 0;
+        let targetOffsetX = 0;
+        let targetOffsetY = 0;
+        let maskCanvas;
+        let gridCanvas;
+        
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            
+            // Ensure canvas has valid dimensions before creating graphics
+            if (width > 0 && height > 0) {
+                maskCanvas = createGraphics(width, height);
+                gridCanvas = createGraphics(width, height);
+            }
+            
+            // Request device orientation permission (iOS 13+)
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation);
+            }
+        }
+        
+        function handleOrientation(event) {
+            targetOffsetX = map(event.gamma || 0, -45, 45, -50, 50);
+            targetOffsetY = map(event.beta || 0, -45, 45, -50, 50);
+        }
+        
+        function draw() {
+            background(255); // White background
+            
+            if (!maskCanvas || !gridCanvas || width <= 0 || height <= 0) {
+                return;
+            }
+            
+            updateGridOffset();
+            gridOffsetX = lerp(gridOffsetX, targetOffsetX, 0.05);
+            gridOffsetY = lerp(gridOffsetY, targetOffsetY, 0.05);
+            
+            // Clear and draw mask
+            maskCanvas.clear();
+            maskCanvas.fill(255);
+            maskCanvas.noStroke();
+            
+            for (let circle of circles) {
+                maskCanvas.ellipse(circle.x, circle.y, circle.radius * 2);
+            }
+            
+            // Draw the grid using your function
+            drawGrid();
+            
+            // Apply masking
+            try {
+                gridCanvas.drawingContext.save();
+                gridCanvas.drawingContext.globalCompositeOperation = 'destination-in';
+                gridCanvas.drawingContext.drawImage(maskCanvas.canvas, 0, 0);
+                gridCanvas.drawingContext.restore();
+                
+                image(gridCanvas, 0, 0);
+            } catch (e) {
+                console.warn('Error applying mask:', e);
+            }
+            
+            // Add new circles
+            if (random() < 0.02) {
+                addCircle(random(width), random(height));
+            }
+            
+            // Update circles
+            for (let i = circles.length - 1; i >= 0; i--) {
+                circles[i].life -= 0.5;
+                if (circles[i].life <= 0) {
+                    circles.splice(i, 1);
+                }
+            }
+        }
+        
+        function drawGrid() {
+            var r_size = 6;
+            var b_size = 9;
+            var g_width = 6;
+            var g_height = 3;
+            var h_padding = 2;
+            var v_padding = 2;
+            var grid_spacing = b_size + h_padding;
+            
+            gridCanvas.clear();
+            gridCanvas.background(0); // Black background
+            gridCanvas.noStroke();
+            gridCanvas.rectMode(CENTER);
+            
+            gridCanvas.push();
+            
+            // Apply offset for movement
+            gridCanvas.translate(gridOffsetX, gridOffsetY);
+            
+            // Position and rotate
+            gridCanvas.translate(gridCanvas.width/2, -gridCanvas.height/2);
+            gridCanvas.rotate(PI/4);
+            
+            // Draw grid - expanded range for coverage
+            for(var i = -100; i < 200; i++) {
+                for(var j = -100; j < 200; j++) {
+                    var x = j * grid_spacing;
+                    var y = i * grid_spacing;
+                    
+                    if(i % 2 == 0) {
+                        // red/green row
+                        if(j % 2 == 0) {
+                            gridCanvas.fill(255, 0, 0); // Red
+                            gridCanvas.rect(x, y, r_size, r_size);
+                        } else {
+                            gridCanvas.fill(0, 255, 0); // Green
+                            gridCanvas.rect(x, y, g_width, g_height);
+                        }
+                    } else {
+                        // blue/green row
+                        if(j % 2 == 0) {
+                            gridCanvas.fill(0, 255, 0); // Green  
+                            gridCanvas.rect(x, y, g_height, g_width);
+                        } else {
+                            gridCanvas.fill(0, 0, 255); // Blue
+                            gridCanvas.rect(x, y, b_size, b_size);
+                        }
+                    }
+                }
+            }
+            
+            gridCanvas.pop();
+        }
+        
+        function updateGridOffset() {
+            if (!window.DeviceOrientationEvent) {
+                targetOffsetX = map(mouseX, 0, width, -30, 30);
+                targetOffsetY = map(mouseY, 0, height, -30, 30);
+            }
+        }
+        
+        function addCircle(x, y) {
+            circles.push({
+                x: x,
+                y: y,
+                radius: random(1.5, 4), // Small raindrop size
+                life: 255,
+                maxLife: 255
+            });
+        }
+        
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            
+            if (width > 0 && height > 0) {
+                if (maskCanvas) maskCanvas.remove();
+                if (gridCanvas) gridCanvas.remove();
+                
+                maskCanvas = createGraphics(width, height);
+                gridCanvas = createGraphics(width, height);
+            }
+        }
+        
+        function mousePressed() {
+            addCircle(mouseX, mouseY);
+        }
+        
+        function touchStarted() {
+            if (touches.length > 0) {
+                addCircle(touches[0].x, touches[0].y);
+            }
+            return false;
+        }
+    </script>
+</body>
+</html>
