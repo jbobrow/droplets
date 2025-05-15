@@ -33,6 +33,10 @@
             z-index: 100;
         }
         
+        #panel-content {
+            transition: opacity 7s ease-out;
+        }
+        
         #start-button {
             background: #000000;
             color: white;
@@ -162,10 +166,12 @@
     <div id="container">
         <div id="permission-panel">
             <h2>💦 Droplets</h2>
-            <p>This app uses your device's motion sensors. Tilt your device to see the effect!</p>
-            <button id="start-button">make it rain</button>
-            <div class="warning" id="warning">
-                Device motion is not available on this device or browser.
+            <div id="panel-content">
+                <p>This app uses your device's motion sensors. Tilt your device to see the effect!</p>
+                <button id="start-button">make it rain</button>
+                <div class="warning" id="warning">
+                    Device motion is not available on this device or browser.
+                </div>
             </div>
         </div>
         
@@ -463,7 +469,6 @@
         // Start tracking device motion
         function startMotionTracking() {
             isMotionEnabled = true;
-            //permissionPanel.style.display = 'none';   // keep it visible (it adds nice context...)
             canvasContainer.style.display = 'block';
             
             // Initialize canvas and start rain
@@ -474,6 +479,17 @@
             
             // Start the animation loop
             animate();
+            
+            // Fade out only the panel content after 3 seconds, keeping the title
+            const panelContent = document.getElementById('panel-content');
+            setTimeout(() => {
+                panelContent.style.opacity = '0';
+                
+                // Completely hide the content after the fade completes
+                setTimeout(() => {
+                    panelContent.style.display = 'none';
+                }, 7000); // 7 seconds for the fade
+            }, 3000); // Wait 3 seconds before starting the fade
         }
         
         // Handle device orientation changes
